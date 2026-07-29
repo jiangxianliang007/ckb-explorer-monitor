@@ -193,10 +193,7 @@ def main() -> None:
 
     t = threading.Thread(target=_loop, args=(cfg,), daemon=True)
     t.start()
-
-    # Keep the main thread alive
-    while True:
-        time.sleep(60)
+    t.join()
 
 
 if __name__ == "__main__":

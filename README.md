@@ -77,7 +77,8 @@ docker run -d \
   -e API_URL=https://testnet-api.explorer.nervos.org \
   -e FRONTEND_URL=https://pudge.explorer.nervos.org \
   -e NET=testnet \
-  -p 9334:9333 \
+  -p 9334:9334 \
+  -e EXPORTER_PORT=9334 \
   ckb-explorer-monitor
 ```
 
