@@ -9,6 +9,8 @@ import requests
 
 log = logging.getLogger(__name__)
 
+_MAX_LOG_RESPONSE_LENGTH = 512
+
 if TYPE_CHECKING:
     from app.config import Config
 
@@ -387,7 +389,7 @@ def check_pending_transactions(cfg: "Config") -> CheckResult:
             body = None
         count = _parse_pending_count(body)
         if count is None:
-            snippet = resp.text[:512]
+            snippet = resp.text[:_MAX_LOG_RESPONSE_LENGTH]
             log.warning(
                 "pending_transactions: could not parse count from response: %s", snippet
             )
