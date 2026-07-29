@@ -2,13 +2,22 @@
 
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 import requests
+
+if TYPE_CHECKING:
+    from app.config import Config
 
 JSONAPI_HEADERS = {
     "Content-Type": "application/vnd.api+json",
     "Accept": "application/vnd.api+json",
+}
+
+# Hardcoded CKB node RPC endpoints, keyed by NET value.
+_NODE_RPC_URLS: Dict[str, str] = {
+    "testnet": "https://testnet.ckbapp.dev",
+    "mainnet": "https://mainnet.ckbapp.dev",
 }
 
 
@@ -253,6 +262,112 @@ def check_frontend(frontend_url: str, timeout: int) -> CheckResult:
         duration = time.monotonic() - start
         return CheckResult(
             endpoint="frontend",
+            up=False,
+            status_code=0,
+            duration=duration,
+            error=str(exc),
+        )
+
+
+def check_node_tip(cfg: "Config") -> CheckResult:
+    """JSON-RPC get_tip_header — fetch the CKB node tip block number."""
+    rpc_url = _NODE_RPC_URLS.get(cfg.net)
+    if rpc_url is None:
+        return CheckResult(
+            endpoint="node_tip",
+            up=False,
+            status_code=0,
+            duration=0.0,
+            error=f"unknown net '{cfg.net}': no RPC URL configured",
+        )
+    payload = {"id": 1, "jsonrpc": "2.0", "method": "get_tip_header", "params": []}
+    start = time.monotonic()
+    try:
+        resp = requests.post(rpc_url, json=payload, timeout=cfg.http_timeout)
+        duration = time.monotonic() - start
+        status_code = resp.status_code
+        if status_code != 200:
+            return CheckResult(
+                endpoint="node_tip",
+                up=False,
+                status_code=status_code,
+                duration=duration,
+                error=f"HTTP {status_code}",
+            )
+        body = resp.json()
+        number_hex = body.get("result", {}).get("number")
+        if number_hex is None:
+            return CheckResult(
+                endpoint="node_tip",
+                up=False,
+                status_code=status_code,
+                duration=duration,
+                error="number missing from get_tip_header result",
+            )
+        node_tip = int(number_hex, 16)
+        return CheckResult(
+            endpoint="node_tip",
+            up=True,
+            status_code=status_code,
+            duration=duration,
+            data={"node_tip_block_number": float(node_tip)},
+        )
+    except Exception as exc:
+        duration = time.monotonic() - start
+        return CheckResult(
+            endpoint="node_tip",
+            up=False,
+            status_code=0,
+            duration=duration,
+            error=str(exc),
+        )
+
+
+def check_pending_transactions(cfg: "Config") -> CheckResult:
+    """GET /api/v2/pending_transactions/count — pending transaction count."""
+    url = f"{cfg.api_url}/api/v2/pending_transactions/count"
+    start = time.monotonic()
+    try:
+        resp = requests.get(url, headers=JSONAPI_HEADERS, timeout=cfg.http_timeout)
+        duration = time.monotonic() - start
+        status_code = resp.status_code
+        if status_code != 200:
+            return CheckResult(
+                endpoint="pending_transactions",
+                up=False,
+                status_code=status_code,
+                duration=duration,
+                error=f"HTTP {status_code}",
+            )
+        body = resp.json()
+        # Support both JSONAPI envelope and flat response shapes.
+        data = body.get("data", {})
+        if isinstance(data, dict):
+            count = data.get("attributes", {}).get("count")
+            if count is None:
+                count = data.get("count")
+        else:
+            count = body.get("count")
+        count = _safe_float(count)
+        if count is None:
+            return CheckResult(
+                endpoint="pending_transactions",
+                up=False,
+                status_code=status_code,
+                duration=duration,
+                error="count missing from pending_transactions response",
+            )
+        return CheckResult(
+            endpoint="pending_transactions",
+            up=True,
+            status_code=status_code,
+            duration=duration,
+            data={"pending_transactions_count": count},
+        )
+    except Exception as exc:
+        duration = time.monotonic() - start
+        return CheckResult(
+            endpoint="pending_transactions",
             up=False,
             status_code=0,
             duration=duration,

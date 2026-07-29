@@ -3,12 +3,15 @@
 import logging
 import threading
 import time
+from typing import Optional
 
 from prometheus_client import Gauge, start_http_server
 
 from app.checks import (
     check_blocks,
     check_frontend,
+    check_node_tip,
+    check_pending_transactions,
     check_statistics,
     check_tip_block_number,
     check_transactions,
@@ -78,6 +81,21 @@ g_frontend_up = Gauge(
     "1 if frontend is reachable, else 0",
     _LABEL_NET,
 )
+g_node_tip_block_number = Gauge(
+    "ckb_explorer_node_tip_block_number",
+    "CKB node tip block number (from RPC get_tip_header)",
+    _LABEL_NET,
+)
+g_sync_lag_blocks = Gauge(
+    "ckb_explorer_sync_lag_blocks",
+    "Difference between node tip and explorer tip (node_tip - explorer_tip, min 0)",
+    _LABEL_NET,
+)
+g_pending_transactions_count = Gauge(
+    "ckb_explorer_pending_transactions_count",
+    "Number of pending transactions reported by the explorer",
+    _LABEL_NET,
+)
 g_scrape_duration = Gauge(
     "ckb_explorer_scrape_duration_seconds",
     "Total time taken for one full scrape cycle",
@@ -94,6 +112,8 @@ def _scrape(cfg: Config) -> None:
     net = cfg.net
     scrape_start = time.monotonic()
 
+    explorer_tip: Optional[float] = None
+
     # --- /api/v1/statistics ---
     try:
         r = check_statistics(cfg.api_url, cfg.http_timeout)
@@ -103,6 +123,7 @@ def _scrape(cfg: Config) -> None:
         if r.up:
             d = r.data
             if d.get("tip_block_number") is not None:
+                explorer_tip = d["tip_block_number"]
                 g_tip_block_number.labels(net=net).set(d["tip_block_number"])
             if d.get("transactions_last_24hrs") is not None:
                 g_transactions_last_24hrs.labels(net=net).set(d["transactions_last_24hrs"])
@@ -162,6 +183,38 @@ def _scrape(cfg: Config) -> None:
             log.warning("frontend check failed: %s", r.error)
     except Exception:
         log.exception("unexpected error in check_frontend")
+
+    # --- CKB node tip (RPC get_tip_header) ---
+    node_tip: Optional[float] = None
+    try:
+        r = check_node_tip(cfg)
+        g_up.labels(net=net, endpoint=r.endpoint).set(1 if r.up else 0)
+        g_duration.labels(net=net, endpoint=r.endpoint).set(r.duration)
+        g_status.labels(net=net, endpoint=r.endpoint).set(r.status_code)
+        if r.up and r.data.get("node_tip_block_number") is not None:
+            node_tip = r.data["node_tip_block_number"]
+            g_node_tip_block_number.labels(net=net).set(node_tip)
+        if r.error:
+            log.warning("node_tip check failed: %s", r.error)
+    except Exception:
+        log.exception("unexpected error in check_node_tip")
+
+    # --- sync lag (node tip vs explorer tip) ---
+    if node_tip is not None and explorer_tip is not None:
+        g_sync_lag_blocks.labels(net=net).set(max(node_tip - explorer_tip, 0))
+
+    # --- pending transactions count ---
+    try:
+        r = check_pending_transactions(cfg)
+        g_up.labels(net=net, endpoint=r.endpoint).set(1 if r.up else 0)
+        g_duration.labels(net=net, endpoint=r.endpoint).set(r.duration)
+        g_status.labels(net=net, endpoint=r.endpoint).set(r.status_code)
+        if r.up and r.data.get("pending_transactions_count") is not None:
+            g_pending_transactions_count.labels(net=net).set(r.data["pending_transactions_count"])
+        if r.error:
+            log.warning("pending_transactions check failed: %s", r.error)
+    except Exception:
+        log.exception("unexpected error in check_pending_transactions")
 
     g_scrape_duration.labels(net=net).set(time.monotonic() - scrape_start)
 

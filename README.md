@@ -12,6 +12,8 @@ A lightweight **Prometheus exporter** that monitors the availability and core da
 | `GET /api/v1/statistics/tip_block_number` | Tip block height |
 | `GET /api/v1/blocks` | Latest blocks list availability and newest block number |
 | `GET /api/v1/transactions` | Latest transactions list availability |
+| `GET /api/v2/pending_transactions/count` | Number of pending transactions |
+| CKB node JSON-RPC `get_tip_header` | Node tip block number (testnet: `https://testnet.ckbapp.dev`, mainnet: `https://mainnet.ckbapp.dev`) |
 | Frontend `GET /` | Frontend reachability |
 
 All v1 API calls include the required JSONAPI headers (`Content-Type: application/vnd.api+json`, `Accept: application/vnd.api+json`).
@@ -32,6 +34,9 @@ All v1 API calls include the required JSONAPI headers (`Content-Type: applicatio
 | `ckb_explorer_latest_block_number` | `net` | Newest block number from `/blocks` |
 | `ckb_explorer_latest_transactions_count` | `net` | Number of tx returned by `/transactions` |
 | `ckb_explorer_frontend_up` | `net` | 1 if frontend is reachable, else 0 |
+| `ckb_explorer_node_tip_block_number` | `net` | CKB node tip block number (from RPC `get_tip_header`) |
+| `ckb_explorer_sync_lag_blocks` | `net` | Blocks behind the node tip (node_tip − explorer_tip, min 0) |
+| `ckb_explorer_pending_transactions_count` | `net` | Number of pending transactions |
 | `ckb_explorer_scrape_duration_seconds` | `net` | Total time for one full scrape cycle |
 
 ---
