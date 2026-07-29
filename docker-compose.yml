@@ -1,0 +1,28 @@
+services:
+  mainnet:
+    image: ghcr.io/jiangxianliang007/ckb-explorer-monitor:latest
+    build: .
+    environment:
+      API_URL: https://mainnet-api.explorer.nervos.org
+      FRONTEND_URL: https://explorer.nervos.org
+      NET: mainnet
+      EXPORTER_PORT: "9333"
+      SCRAPE_INTERVAL: "30"
+      HTTP_TIMEOUT: "10"
+    ports:
+      - "9333:9333"
+    restart: unless-stopped
+
+  testnet:
+    image: ghcr.io/jiangxianliang007/ckb-explorer-monitor:latest
+    build: .
+    environment:
+      API_URL: https://testnet-api.explorer.nervos.org
+      FRONTEND_URL: https://pudge.explorer.nervos.org
+      NET: testnet
+      EXPORTER_PORT: "9333"
+      SCRAPE_INTERVAL: "30"
+      HTTP_TIMEOUT: "10"
+    ports:
+      - "9334:9333"
+    restart: unless-stopped
