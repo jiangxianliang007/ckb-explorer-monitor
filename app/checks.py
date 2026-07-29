@@ -1,10 +1,13 @@
 """Probe functions for each monitored CKB Explorer endpoint."""
 
+import logging
 import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
 import requests
+
+log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from app.config import Config
@@ -323,12 +326,51 @@ def check_node_tip(cfg: "Config") -> CheckResult:
         )
 
 
+def _parse_pending_count(body: Any) -> Optional[float]:
+    """Extract the pending transaction count from various API response shapes.
+
+    Accepted shapes (all treat 0 as a valid count):
+      - Raw numeric JSON: ``42`` or ``0``
+      - ``{"data": 0}`` / ``{"data": 42}`` — data field is the count
+      - ``{"data": {"count": 42}}``
+      - ``{"data": {"attributes": {"count": "42"}}}`` — JSONAPI envelope
+      - ``{"count": 42}``
+    """
+    # Raw numeric response (the entire body is a number).
+    if isinstance(body, (int, float)):
+        return float(body)
+
+    if not isinstance(body, dict):
+        return None
+
+    data = body.get("data")
+
+    # {"data": 0} or {"data": 42} — the value itself is the count.
+    if isinstance(data, (int, float)):
+        return float(data)
+
+    if isinstance(data, dict):
+        # {"data": {"attributes": {"count": ...}}} — JSONAPI envelope.
+        count = data.get("attributes", {}).get("count")
+        if count is None:
+            # {"data": {"count": ...}}
+            count = data.get("count")
+        if count is not None:
+            return _safe_float(count)
+
+    # {"count": ...} — flat top-level key.
+    if "count" in body:
+        return _safe_float(body["count"])
+
+    return None
+
+
 def check_pending_transactions(cfg: "Config") -> CheckResult:
     """GET /api/v2/pending_transactions/count — pending transaction count."""
     url = f"{cfg.api_url}/api/v2/pending_transactions/count"
     start = time.monotonic()
     try:
-        resp = requests.get(url, headers=JSONAPI_HEADERS, timeout=cfg.http_timeout)
+        resp = requests.get(url, timeout=cfg.http_timeout)
         duration = time.monotonic() - start
         status_code = resp.status_code
         if status_code != 200:
@@ -339,17 +381,16 @@ def check_pending_transactions(cfg: "Config") -> CheckResult:
                 duration=duration,
                 error=f"HTTP {status_code}",
             )
-        body = resp.json()
-        # Support both JSONAPI envelope and flat response shapes.
-        data = body.get("data", {})
-        if isinstance(data, dict):
-            count = data.get("attributes", {}).get("count")
-            if count is None:
-                count = data.get("count")
-        else:
-            count = body.get("count")
-        count = _safe_float(count)
+        try:
+            body = resp.json()
+        except Exception:
+            body = None
+        count = _parse_pending_count(body)
         if count is None:
+            snippet = resp.text[:512]
+            log.warning(
+                "pending_transactions: could not parse count from response: %s", snippet
+            )
             return CheckResult(
                 endpoint="pending_transactions",
                 up=False,
