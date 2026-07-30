@@ -5,7 +5,7 @@ import threading
 import time
 from typing import Optional
 
-from prometheus_client import Gauge, start_http_server
+from prometheus_client import Counter, Gauge, start_http_server
 
 from app.checks import (
     check_blocks,
@@ -71,10 +71,40 @@ g_latest_block_number = Gauge(
     "Newest block number from /blocks",
     _LABEL_NET,
 )
-g_latest_tx_count = Gauge(
-    "ckb_explorer_latest_transactions_count",
-    "Number of transactions returned by /transactions",
+g_latest_block_timestamp_seconds = Gauge(
+    "ckb_explorer_latest_block_timestamp_seconds",
+    "Newest block timestamp from /blocks in seconds",
     _LABEL_NET,
+)
+g_latest_block_age_seconds = Gauge(
+    "ckb_explorer_latest_block_age_seconds",
+    "Age of newest block from /blocks in seconds",
+    _LABEL_NET,
+)
+g_latest_transaction_timestamp_seconds = Gauge(
+    "ckb_explorer_latest_transaction_timestamp_seconds",
+    "Newest transaction block timestamp from /transactions in seconds",
+    _LABEL_NET,
+)
+g_latest_transaction_age_seconds = Gauge(
+    "ckb_explorer_latest_transaction_age_seconds",
+    "Age of newest transaction from /transactions in seconds",
+    _LABEL_NET,
+)
+g_latest_transaction_block_number = Gauge(
+    "ckb_explorer_latest_transaction_block_number",
+    "Newest transaction block number from /transactions",
+    _LABEL_NET,
+)
+g_transaction_tip_lag_blocks = Gauge(
+    "ckb_explorer_transaction_tip_lag_blocks",
+    "Difference between explorer tip and latest transaction block (min 0)",
+    _LABEL_NET,
+)
+g_latest_transaction_status = Gauge(
+    "ckb_explorer_latest_transaction_status",
+    "Latest transaction status from /transactions (value is always 1)",
+    ["net", "status"],
 )
 g_frontend_up = Gauge(
     "ckb_explorer_frontend_up",
@@ -101,6 +131,13 @@ g_scrape_duration = Gauge(
     "Total time taken for one full scrape cycle",
     _LABEL_NET,
 )
+g_scrape_errors_total = Counter(
+    "ckb_explorer_scrape_errors_total",
+    "Total scrape errors per endpoint",
+    _LABEL_NET_ENDPOINT,
+)
+
+_last_latest_transaction_status = {}
 
 
 # ---------------------------------------------------------------------------
@@ -111,8 +148,12 @@ g_scrape_duration = Gauge(
 def _scrape(cfg: Config) -> None:
     net = cfg.net
     scrape_start = time.monotonic()
+    now = time.time()
 
     explorer_tip: Optional[float] = None
+
+    def _inc_scrape_error(endpoint: str) -> None:
+        g_scrape_errors_total.labels(net=net, endpoint=endpoint).inc()
 
     # --- /api/v1/statistics ---
     try:
@@ -120,6 +161,8 @@ def _scrape(cfg: Config) -> None:
         g_up.labels(net=net, endpoint=r.endpoint).set(1 if r.up else 0)
         g_duration.labels(net=net, endpoint=r.endpoint).set(r.duration)
         g_status.labels(net=net, endpoint=r.endpoint).set(r.status_code)
+        if not r.up:
+            _inc_scrape_error(r.endpoint)
         if r.up:
             d = r.data
             if d.get("tip_block_number") is not None:
@@ -134,6 +177,7 @@ def _scrape(cfg: Config) -> None:
         if r.error:
             log.warning("statistics check failed: %s", r.error)
     except Exception:
+        _inc_scrape_error("statistics")
         log.exception("unexpected error in check_statistics")
 
     # --- /api/v1/statistics/tip_block_number ---
@@ -142,9 +186,12 @@ def _scrape(cfg: Config) -> None:
         g_up.labels(net=net, endpoint=r.endpoint).set(1 if r.up else 0)
         g_duration.labels(net=net, endpoint=r.endpoint).set(r.duration)
         g_status.labels(net=net, endpoint=r.endpoint).set(r.status_code)
+        if not r.up:
+            _inc_scrape_error(r.endpoint)
         if r.error:
             log.warning("tip_block_number check failed: %s", r.error)
     except Exception:
+        _inc_scrape_error("tip_block_number")
         log.exception("unexpected error in check_tip_block_number")
 
     # --- /api/v1/blocks ---
@@ -153,11 +200,24 @@ def _scrape(cfg: Config) -> None:
         g_up.labels(net=net, endpoint=r.endpoint).set(1 if r.up else 0)
         g_duration.labels(net=net, endpoint=r.endpoint).set(r.duration)
         g_status.labels(net=net, endpoint=r.endpoint).set(r.status_code)
-        if r.up and r.data.get("latest_block_number") is not None:
-            g_latest_block_number.labels(net=net).set(r.data["latest_block_number"])
+        if not r.up:
+            _inc_scrape_error(r.endpoint)
+        if r.up:
+            latest_block_number = r.data.get("latest_block_number")
+            latest_block_timestamp_seconds = r.data.get("latest_block_timestamp_seconds")
+            if latest_block_number is not None:
+                g_latest_block_number.labels(net=net).set(latest_block_number)
+            if latest_block_timestamp_seconds is not None:
+                g_latest_block_timestamp_seconds.labels(net=net).set(latest_block_timestamp_seconds)
+                g_latest_block_age_seconds.labels(net=net).set(
+                    max(now - latest_block_timestamp_seconds, 0)
+                )
+            else:
+                log.warning("blocks check missing latest block timestamp")
         if r.error:
             log.warning("blocks check failed: %s", r.error)
     except Exception:
+        _inc_scrape_error("blocks")
         log.exception("unexpected error in check_blocks")
 
     # --- /api/v1/transactions ---
@@ -166,11 +226,45 @@ def _scrape(cfg: Config) -> None:
         g_up.labels(net=net, endpoint=r.endpoint).set(1 if r.up else 0)
         g_duration.labels(net=net, endpoint=r.endpoint).set(r.duration)
         g_status.labels(net=net, endpoint=r.endpoint).set(r.status_code)
-        if r.up and r.data.get("latest_transactions_count") is not None:
-            g_latest_tx_count.labels(net=net).set(r.data["latest_transactions_count"])
+        if not r.up:
+            _inc_scrape_error(r.endpoint)
+        if r.up:
+            latest_transaction_timestamp_seconds = r.data.get("latest_transaction_timestamp_seconds")
+            latest_transaction_block_number = r.data.get("latest_transaction_block_number")
+            latest_transaction_status = r.data.get("latest_transaction_status")
+            if latest_transaction_timestamp_seconds is not None:
+                g_latest_transaction_timestamp_seconds.labels(net=net).set(
+                    latest_transaction_timestamp_seconds
+                )
+                g_latest_transaction_age_seconds.labels(net=net).set(
+                    max(now - latest_transaction_timestamp_seconds, 0)
+                )
+            else:
+                log.warning("transactions check missing latest transaction timestamp")
+            if latest_transaction_block_number is not None:
+                g_latest_transaction_block_number.labels(net=net).set(
+                    latest_transaction_block_number
+                )
+                if explorer_tip is not None:
+                    g_transaction_tip_lag_blocks.labels(net=net).set(
+                        max(explorer_tip - latest_transaction_block_number, 0)
+                    )
+            else:
+                log.warning("transactions check missing latest transaction block number")
+            if latest_transaction_status:
+                previous_status = _last_latest_transaction_status.get(net)
+                if previous_status and previous_status != latest_transaction_status:
+                    g_latest_transaction_status.labels(net=net, status=previous_status).set(0)
+                g_latest_transaction_status.labels(
+                    net=net, status=latest_transaction_status
+                ).set(1)
+                _last_latest_transaction_status[net] = latest_transaction_status
+            else:
+                log.warning("transactions check missing latest transaction status")
         if r.error:
             log.warning("transactions check failed: %s", r.error)
     except Exception:
+        _inc_scrape_error("transactions")
         log.exception("unexpected error in check_transactions")
 
     # --- frontend ---
@@ -179,9 +273,12 @@ def _scrape(cfg: Config) -> None:
         g_frontend_up.labels(net=net).set(1 if r.up else 0)
         g_duration.labels(net=net, endpoint=r.endpoint).set(r.duration)
         g_status.labels(net=net, endpoint=r.endpoint).set(r.status_code)
+        if not r.up:
+            _inc_scrape_error(r.endpoint)
         if r.error:
             log.warning("frontend check failed: %s", r.error)
     except Exception:
+        _inc_scrape_error("frontend")
         log.exception("unexpected error in check_frontend")
 
     # --- CKB node tip (RPC get_tip_header) ---
@@ -191,12 +288,15 @@ def _scrape(cfg: Config) -> None:
         g_up.labels(net=net, endpoint=r.endpoint).set(1 if r.up else 0)
         g_duration.labels(net=net, endpoint=r.endpoint).set(r.duration)
         g_status.labels(net=net, endpoint=r.endpoint).set(r.status_code)
+        if not r.up:
+            _inc_scrape_error(r.endpoint)
         if r.up and r.data.get("node_tip_block_number") is not None:
             node_tip = r.data["node_tip_block_number"]
             g_node_tip_block_number.labels(net=net).set(node_tip)
         if r.error:
             log.warning("node_tip check failed: %s", r.error)
     except Exception:
+        _inc_scrape_error("node_tip")
         log.exception("unexpected error in check_node_tip")
 
     # --- sync lag (node tip vs explorer tip) ---
@@ -209,11 +309,14 @@ def _scrape(cfg: Config) -> None:
         g_up.labels(net=net, endpoint=r.endpoint).set(1 if r.up else 0)
         g_duration.labels(net=net, endpoint=r.endpoint).set(r.duration)
         g_status.labels(net=net, endpoint=r.endpoint).set(r.status_code)
+        if not r.up:
+            _inc_scrape_error(r.endpoint)
         if r.up and r.data.get("pending_transactions_count") is not None:
             g_pending_transactions_count.labels(net=net).set(r.data["pending_transactions_count"])
         if r.error:
             log.warning("pending_transactions check failed: %s", r.error)
     except Exception:
+        _inc_scrape_error("pending_transactions")
         log.exception("unexpected error in check_pending_transactions")
 
     g_scrape_duration.labels(net=net).set(time.monotonic() - scrape_start)

@@ -44,6 +44,16 @@ def _safe_float(value: Any) -> Optional[float]:
         return None
 
 
+def _parse_timestamp_seconds(value: Any) -> Optional[float]:
+    """Parse timestamp that may be seconds or milliseconds into seconds."""
+    ts = _safe_float(value)
+    if ts is None:
+        return None
+    if ts > 1e12:
+        ts = ts / 1000.0
+    return ts
+
+
 def check_statistics(api_url: str, timeout: int) -> CheckResult:
     """GET /api/v1/statistics — overview stats."""
     url = f"{api_url}/api/v1/statistics"
@@ -179,14 +189,19 @@ def check_blocks(api_url: str, timeout: int) -> CheckResult:
                 error="blocks data list is empty or invalid",
             )
 
-        latest_number = _safe_float(data_list[0].get("attributes", {}).get("number"))
+        attrs = data_list[0].get("attributes", {})
+        latest_number = _safe_float(attrs.get("number"))
+        latest_timestamp_seconds = _parse_timestamp_seconds(attrs.get("timestamp"))
 
         return CheckResult(
             endpoint="blocks",
             up=True,
             status_code=status_code,
             duration=duration,
-            data={"latest_block_number": latest_number},
+            data={
+                "latest_block_number": latest_number,
+                "latest_block_timestamp_seconds": latest_timestamp_seconds,
+            },
         )
     except Exception as exc:
         duration = time.monotonic() - start
@@ -229,12 +244,23 @@ def check_transactions(api_url: str, timeout: int) -> CheckResult:
                 error="transactions data list is empty or invalid",
             )
 
+        attrs = data_list[0].get("attributes", {})
+        tx_status = attrs.get("tx_status")
+        if tx_status is None and attrs.get("is_cellbase") is not None:
+            tx_status = "committed"
+
         return CheckResult(
             endpoint="transactions",
             up=True,
             status_code=status_code,
             duration=duration,
-            data={"latest_transactions_count": float(len(data_list))},
+            data={
+                "latest_transaction_timestamp_seconds": _parse_timestamp_seconds(
+                    attrs.get("block_timestamp")
+                ),
+                "latest_transaction_block_number": _safe_float(attrs.get("block_number")),
+                "latest_transaction_status": str(tx_status) if tx_status is not None else None,
+            },
         )
     except Exception as exc:
         duration = time.monotonic() - start
