@@ -5,7 +5,7 @@ import threading
 import time
 from typing import Optional
 
-from prometheus_client import Counter, Gauge, start_http_server
+from prometheus_client import Counter, Gauge, Info, start_http_server
 
 from app.checks import (
     check_blocks,
@@ -30,6 +30,12 @@ log = logging.getLogger(__name__)
 
 _LABEL_NET_ENDPOINT = ["net", "endpoint"]
 _LABEL_NET = ["net"]
+
+i_info = Info(
+    "ckb_explorer",
+    "Static information about the monitored CKB Explorer environment",
+    _LABEL_NET,
+)
 
 g_up = Gauge(
     "ckb_explorer_up",
@@ -345,6 +351,16 @@ def _loop(cfg: Config) -> None:
 def main() -> None:
     cfg = Config()
     log.info("Starting CKB Explorer exporter on port %d (net=%s)", cfg.exporter_port, cfg.net)
+
+    # Publish static environment info so Grafana dashboards can display the
+    # frontend URL and API URL for each net without hard-coding them.
+    i_info.labels(net=cfg.net).info(
+        {
+            "frontend_url": cfg.frontend_url,
+            "api_url": cfg.api_url,
+        }
+    )
+
     start_http_server(cfg.exporter_port)
 
     t = threading.Thread(target=_loop, args=(cfg,), daemon=True)
