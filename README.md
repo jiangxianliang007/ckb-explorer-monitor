@@ -124,6 +124,103 @@ scrape_configs:
 
 ---
 
+## Alerting rules
+
+Pre-built Prometheus alerting rules are provided in [`prometheus/alerts.yml`](prometheus/alerts.yml).
+
+### Loading the rules
+
+Add a `rule_files` entry to your `prometheus.yml` **before** `scrape_configs`:
+
+```yaml
+rule_files:
+  - /path/to/ckb-explorer-monitor/prometheus/alerts.yml
+
+scrape_configs:
+  - job_name: ckb-explorer-mainnet
+    static_configs:
+      - targets: ['localhost:9333']
+
+  - job_name: ckb-explorer-testnet
+    static_configs:
+      - targets: ['localhost:9334']
+```
+
+### Alertmanager integration
+
+To route alerts to a notification channel, add an `alerting` block and configure Alertmanager:
+
+```yaml
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093   # replace with your Alertmanager host:port
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+scrape_configs:
+  # ...
+```
+
+A minimal Alertmanager config skeleton (`alertmanager.yml`):
+
+```yaml
+route:
+  receiver: 'default'
+  group_by: ['alertname', 'net']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+receivers:
+  - name: 'default'
+    # Add your notification channel here, e.g. slack_configs, webhook_configs, etc.
+    # See https://prometheus.io/docs/alerting/latest/configuration/
+```
+
+### Default alert thresholds
+
+| Alert | Severity | Condition | `for` |
+|-------|----------|-----------|-------|
+| `CKBExplorerEndpointDown` | critical | `ckb_explorer_up == 0` | 2 m |
+| `CKBExplorerFrontendDown` | critical | `ckb_explorer_frontend_up == 0` | 2 m |
+| `CKBExplorerScapeTargetDown` | critical | `up{job=~"ckb-explorer-mainnet\|ckb-explorer-testnet"} == 0` | 2 m |
+| `CKBExplorerSyncLagHigh` | warning | `ckb_explorer_sync_lag_blocks > 50` | 5 m |
+| `CKBExplorerSyncLagCritical` | critical | `ckb_explorer_sync_lag_blocks > 200` | 5 m |
+| `CKBExplorerLatestBlockStale` | warning | `ckb_explorer_latest_block_age_seconds > 300` | 5 m |
+| `CKBExplorerLatestBlockStaleCritical` | critical | `ckb_explorer_latest_block_age_seconds > 900` | 5 m |
+| `CKBExplorerLatestTransactionStale` | warning | `ckb_explorer_latest_transaction_age_seconds > 600` | 5 m |
+| `CKBExplorerLatestTransactionStaleCritical` | critical | `ckb_explorer_latest_transaction_age_seconds > 1800` | 5 m |
+| `CKBExplorerPendingTransactionsHigh` | warning | `ckb_explorer_pending_transactions_count > 5000` | 10 m |
+| `CKBExplorerPendingTransactionsCritical` | critical | `ckb_explorer_pending_transactions_count > 20000` | 10 m |
+| `CKBExplorerScrapeErrorsIncreasing` | warning | `rate(ckb_explorer_scrape_errors_total[5m]) > 0` | 5 m |
+
+> **Tuning for production:** The thresholds above are conservative defaults. Adjust them to match your actual block time (~10 s on CKB mainnet), transaction throughput, and traffic patterns. For example, if you run a high-volume chain you may want to raise the pending-transaction thresholds; if you require tighter SLOs you may reduce the `for` durations.
+
+### Validating rule syntax locally
+
+```bash
+promtool check rules prometheus/alerts.yml
+```
+
+### Using docker-compose with the optional Prometheus service
+
+The `docker-compose.yml` ships an **optional** `prometheus` service (disabled by default via Docker Compose profiles) that mounts both the scrape config and the alerting rules:
+
+```bash
+# Start exporters + Prometheus
+docker compose --profile prometheus up -d
+
+# Exporters only (default behaviour — unchanged)
+docker compose up -d
+```
+
+The Prometheus UI will be available at `http://localhost:9090`.
+
+---
+
 ## Docker image
 
 The image is automatically built and pushed to the **GitHub Container Registry** on every push to `main` and on new version tags (`v*`):
