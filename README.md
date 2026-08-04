@@ -234,3 +234,73 @@ To pull the latest image:
 ```bash
 docker pull ghcr.io/jiangxianliang007/ckb-explorer-monitor:latest
 ```
+---
+
+## Grafana Dashboard
+
+A pre-built Grafana dashboard is included at [`grafana/dashboards/ckb-explorer-monitor.json`](grafana/dashboards/ckb-explorer-monitor.json).
+
+### Features
+
+- **`net` variable** — top-of-dashboard dropdown that filters every panel to the selected network (`mainnet`, `testnet`, or any other value exposed by the exporter).
+- **Environment URLs** — two Stat panels display the **Frontend URL** and **API URL** for the selected network. The frontend URL panel is clickable and opens the explorer in a new tab.
+- **Availability** — per-endpoint and frontend up/down status, plus availability history.
+- **Block & Sync Status** — explorer tip, node tip, sync lag, and latest block age.
+- **Transactions** — 24 h count, tx/min, pending count, latest transaction age.
+- **Latency** — per-endpoint request duration, average block time, scrape duration.
+- **Errors & HTTP Status** — scrape error rate and last HTTP status codes.
+
+### 1. Configure the Prometheus datasource
+
+In Grafana (**Configuration → Data Sources → Add data source → Prometheus**), set the URL to your Prometheus server (e.g. `http://localhost:9090`) and save.
+
+### 2. Import the dashboard
+
+1. In Grafana go to **Dashboards → Import**.
+2. Click **Upload JSON file** and select `grafana/dashboards/ckb-explorer-monitor.json`.
+3. Under **Prometheus** select the Prometheus datasource you configured above.
+4. Click **Import**.
+
+> **Tip:** You can also paste the JSON content directly into the *Import via panel JSON* text box.
+
+### 3. Switch environment with `net`
+
+At the top of the dashboard use the **Network** dropdown to switch between `mainnet`, `testnet`, or any other network label your exporter exposes.  
+All panels update automatically.
+
+### 4. Configure per-environment website URLs
+
+The dashboard displays the frontend and API URLs from the `ckb_explorer_info` metric, which is set automatically by the exporter at startup using the `FRONTEND_URL` and `API_URL` environment variables.
+
+No extra configuration is required — just ensure each exporter instance is started with the correct variables:
+
+| Network | `API_URL` | `FRONTEND_URL` |
+|---------|-----------|----------------|
+| mainnet | `https://mainnet-api.explorer.nervos.org` | `https://explorer.nervos.org` |
+| testnet | `https://testnet-api.explorer.nervos.org` | `https://pudge.explorer.nervos.org` |
+
+### 5. Required Prometheus labels / metrics
+
+The dashboard queries the following metrics (all exposed by this exporter):
+
+| Metric | Labels | Used for |
+|--------|--------|---------|
+| `ckb_explorer_info` | `net`, `frontend_url`, `api_url` | Environment URL display |
+| `ckb_explorer_up` | `net`, `endpoint` | Availability, `net` variable |
+| `ckb_explorer_frontend_up` | `net` | Frontend status |
+| `ckb_explorer_request_duration_seconds` | `net`, `endpoint` | Latency |
+| `ckb_explorer_http_status` | `net`, `endpoint` | HTTP status table |
+| `ckb_explorer_tip_block_number` | `net` | Explorer tip block |
+| `ckb_explorer_node_tip_block_number` | `net` | Node tip block |
+| `ckb_explorer_sync_lag_blocks` | `net` | Sync lag |
+| `ckb_explorer_latest_block_number` | `net` | Latest block from /blocks |
+| `ckb_explorer_latest_block_age_seconds` | `net` | Block staleness |
+| `ckb_explorer_transactions_last_24hrs` | `net` | 24 h transaction count |
+| `ckb_explorer_transactions_count_per_minute` | `net` | Tx/min |
+| `ckb_explorer_pending_transactions_count` | `net` | Pending transactions |
+| `ckb_explorer_latest_transaction_age_seconds` | `net` | Transaction staleness |
+| `ckb_explorer_average_block_time` | `net` | Average block time (ms) |
+| `ckb_explorer_scrape_duration_seconds` | `net` | Exporter scrape cycle time |
+| `ckb_explorer_scrape_errors_total` | `net`, `endpoint` | Error rate |
+
+All metrics are emitted automatically by the exporter — no extra instrumentation is needed.
