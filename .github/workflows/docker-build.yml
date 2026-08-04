@@ -15,8 +15,26 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  validate-rules:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install promtool
+        run: |
+          PROM_VERSION="3.4.2"
+          wget -q "https://github.com/prometheus/prometheus/releases/download/v${PROM_VERSION}/prometheus-${PROM_VERSION}.linux-amd64.tar.gz" \
+            -O /tmp/prometheus.tar.gz
+          tar -xzf /tmp/prometheus.tar.gz -C /tmp
+          sudo mv /tmp/prometheus-${PROM_VERSION}.linux-amd64/promtool /usr/local/bin/promtool
+
+      - name: Check alerting rules syntax
+        run: promtool check rules prometheus/alerts.yml
+
   build-and-push:
     runs-on: ubuntu-latest
+    needs: validate-rules
     permissions:
       contents: read
       packages: write

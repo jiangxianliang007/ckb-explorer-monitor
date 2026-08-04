@@ -26,3 +26,24 @@ services:
     ports:
       - "9334:9334"
     restart: unless-stopped
+
+  # Optional: a minimal Prometheus instance that scrapes both exporters and
+  # loads the bundled alerting rules.  Remove this service if you already
+  # have a central Prometheus deployment.
+  prometheus:
+    image: prom/prometheus:latest
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+    profiles:
+      - prometheus   # start only when explicitly requested: docker compose --profile prometheus up
+
+volumes:
+  prometheus_data:

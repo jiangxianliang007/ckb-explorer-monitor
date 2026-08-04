@@ -1,0 +1,172 @@
+groups:
+  - name: ckb_explorer_availability
+    rules:
+      # -----------------------------------------------------------------------
+      # Exporter endpoint down
+      # -----------------------------------------------------------------------
+      - alert: CKBExplorerEndpointDown
+        expr: ckb_explorer_up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "CKB Explorer endpoint unreachable ({{ $labels.net }}/{{ $labels.endpoint }})"
+          description: >
+            The CKB Explorer endpoint '{{ $labels.endpoint }}' on network '{{ $labels.net }}'
+            has been returning 0 (down) for more than 2 minutes.
+            Current value: {{ $value }}.
+
+      # -----------------------------------------------------------------------
+      # Frontend down
+      # -----------------------------------------------------------------------
+      - alert: CKBExplorerFrontendDown
+        expr: ckb_explorer_frontend_up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "CKB Explorer frontend unreachable ({{ $labels.net }})"
+          description: >
+            The CKB Explorer frontend on network '{{ $labels.net }}' has been unreachable
+            for more than 2 minutes.
+            Current value: {{ $value }}.
+
+      # -----------------------------------------------------------------------
+      # Prometheus cannot scrape the exporter target itself
+      # (scoped to the two job names defined in the README scrape config)
+      # -----------------------------------------------------------------------
+      - alert: CKBExplorerScapeTargetDown
+        expr: up{job=~"ckb-explorer-mainnet|ckb-explorer-testnet"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Prometheus cannot scrape CKB Explorer exporter ({{ $labels.job }})"
+          description: >
+            Prometheus failed to scrape job '{{ $labels.job }}' (instance {{ $labels.instance }})
+            for more than 2 minutes. The exporter process may be down or unreachable.
+
+  - name: ckb_explorer_sync
+    rules:
+      # -----------------------------------------------------------------------
+      # Explorer is lagging behind the CKB node
+      # -----------------------------------------------------------------------
+      - alert: CKBExplorerSyncLagHigh
+        expr: ckb_explorer_sync_lag_blocks > 50
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CKB Explorer sync lag is high ({{ $labels.net }})"
+          description: >
+            The CKB Explorer on network '{{ $labels.net }}' is {{ $value | humanize }} blocks
+            behind the CKB node tip and has been above 50 blocks for more than 5 minutes.
+
+      - alert: CKBExplorerSyncLagCritical
+        expr: ckb_explorer_sync_lag_blocks > 200
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "CKB Explorer sync lag is critical ({{ $labels.net }})"
+          description: >
+            The CKB Explorer on network '{{ $labels.net }}' is {{ $value | humanize }} blocks
+            behind the CKB node tip and has been above 200 blocks for more than 5 minutes.
+
+      # -----------------------------------------------------------------------
+      # Latest block not updating
+      # -----------------------------------------------------------------------
+      - alert: CKBExplorerLatestBlockStale
+        expr: ckb_explorer_latest_block_age_seconds > 300
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CKB Explorer latest block is stale ({{ $labels.net }})"
+          description: >
+            The newest block seen by the CKB Explorer on network '{{ $labels.net }}'
+            is {{ $value | humanizeDuration }} old (threshold: 5 minutes).
+            This may indicate the chain has stalled or the Explorer is not ingesting blocks.
+
+      - alert: CKBExplorerLatestBlockStaleCritical
+        expr: ckb_explorer_latest_block_age_seconds > 900
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "CKB Explorer latest block is critically stale ({{ $labels.net }})"
+          description: >
+            The newest block seen by the CKB Explorer on network '{{ $labels.net }}'
+            is {{ $value | humanizeDuration }} old (threshold: 15 minutes).
+
+      # -----------------------------------------------------------------------
+      # Latest transaction not updating
+      # -----------------------------------------------------------------------
+      - alert: CKBExplorerLatestTransactionStale
+        expr: ckb_explorer_latest_transaction_age_seconds > 600
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CKB Explorer latest transaction is stale ({{ $labels.net }})"
+          description: >
+            The newest transaction seen by the CKB Explorer on network '{{ $labels.net }}'
+            is {{ $value | humanizeDuration }} old (threshold: 10 minutes).
+
+      - alert: CKBExplorerLatestTransactionStaleCritical
+        expr: ckb_explorer_latest_transaction_age_seconds > 1800
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "CKB Explorer latest transaction is critically stale ({{ $labels.net }})"
+          description: >
+            The newest transaction seen by the CKB Explorer on network '{{ $labels.net }}'
+            is {{ $value | humanizeDuration }} old (threshold: 30 minutes).
+
+  - name: ckb_explorer_transactions
+    rules:
+      # -----------------------------------------------------------------------
+      # Pending transactions backlog
+      # -----------------------------------------------------------------------
+      - alert: CKBExplorerPendingTransactionsHigh
+        expr: ckb_explorer_pending_transactions_count > 5000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CKB Explorer pending transactions backlog is high ({{ $labels.net }})"
+          description: >
+            The pending transaction pool on network '{{ $labels.net }}' contains
+            {{ $value | humanize }} transactions (threshold: 5 000) and has been above
+            this level for more than 10 minutes.
+
+      - alert: CKBExplorerPendingTransactionsCritical
+        expr: ckb_explorer_pending_transactions_count > 20000
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "CKB Explorer pending transactions backlog is critical ({{ $labels.net }})"
+          description: >
+            The pending transaction pool on network '{{ $labels.net }}' contains
+            {{ $value | humanize }} transactions (threshold: 20 000) and has been above
+            this level for more than 10 minutes.
+
+  - name: ckb_explorer_scrape_errors
+    rules:
+      # -----------------------------------------------------------------------
+      # Scrape errors increasing
+      # -----------------------------------------------------------------------
+      - alert: CKBExplorerScrapeErrorsIncreasing
+        expr: rate(ckb_explorer_scrape_errors_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CKB Explorer scrape errors are increasing ({{ $labels.net }}/{{ $labels.endpoint }})"
+          description: >
+            Scrape errors for endpoint '{{ $labels.endpoint }}' on network '{{ $labels.net }}'
+            have been occurring continuously for more than 5 minutes
+            (rate: {{ $value | humanize }} errors/s).
+            Check exporter logs and target reachability.
