@@ -273,33 +273,6 @@ def check_transactions(api_url: str, timeout: int) -> CheckResult:
         )
 
 
-def check_frontend(frontend_url: str, timeout: int) -> CheckResult:
-    """GET / — frontend reachability check."""
-    url = frontend_url
-    start = time.monotonic()
-    try:
-        resp = requests.get(url, timeout=timeout, allow_redirects=True)
-        duration = time.monotonic() - start
-        status_code = resp.status_code
-        up = status_code < 400
-        return CheckResult(
-            endpoint="frontend",
-            up=up,
-            status_code=status_code,
-            duration=duration,
-            error=None if up else f"HTTP {status_code}",
-        )
-    except Exception as exc:
-        duration = time.monotonic() - start
-        return CheckResult(
-            endpoint="frontend",
-            up=False,
-            status_code=0,
-            duration=duration,
-            error=str(exc),
-        )
-
-
 def check_node_tip(cfg: "Config") -> CheckResult:
     """JSON-RPC get_tip_header — fetch the CKB node tip block number."""
     rpc_url = _NODE_RPC_URLS.get(cfg.net)
