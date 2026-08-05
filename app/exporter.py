@@ -113,12 +113,12 @@ g_latest_transaction_status = Gauge(
 )
 g_node_tip_block_number = Gauge(
     "ckb_explorer_node_tip_block_number",
-    "CKB node tip block number (from RPC get_tip_header)",
+    "Upstream CKB node tip block number (from RPC get_tip_header)",
     _LABEL_NET,
 )
 g_sync_lag_blocks = Gauge(
     "ckb_explorer_sync_lag_blocks",
-    "Difference between node tip and explorer tip (node_tip - explorer_tip, min 0)",
+    "Upstream CKB node tip minus Explorer indexed tip (upstream_node_tip - explorer_tip, min 0)",
     _LABEL_NET,
 )
 g_pending_transactions_count = Gauge(
@@ -310,9 +310,10 @@ def _scrape(cfg: Config) -> None:
 
 def _loop(cfg: Config) -> None:
     log.info(
-        "Starting scrape loop: net=%s api=%s interval=%ds",
+        "Starting scrape loop: net=%s api=%s node_rpc=%s interval=%ds",
         cfg.net,
         cfg.api_url,
+        cfg.node_rpc_url,
         cfg.scrape_interval,
     )
     while True:

@@ -19,12 +19,6 @@ JSONAPI_HEADERS = {
     "Accept": "application/vnd.api+json",
 }
 
-# Hardcoded CKB node RPC endpoints, keyed by NET value.
-_NODE_RPC_URLS: Dict[str, str] = {
-    "testnet": "https://testnet.ckbapp.dev",
-    "mainnet": "https://mainnet.ckbapp.dev",
-}
-
 
 @dataclass
 class CheckResult:
@@ -274,16 +268,8 @@ def check_transactions(api_url: str, timeout: int) -> CheckResult:
 
 
 def check_node_tip(cfg: "Config") -> CheckResult:
-    """JSON-RPC get_tip_header — fetch the CKB node tip block number."""
-    rpc_url = _NODE_RPC_URLS.get(cfg.net)
-    if rpc_url is None:
-        return CheckResult(
-            endpoint="node_tip",
-            up=False,
-            status_code=0,
-            duration=0.0,
-            error=f"unknown net '{cfg.net}': no RPC URL configured",
-        )
+    """JSON-RPC get_tip_header — fetch the upstream CKB node tip block number."""
+    rpc_url = cfg.node_rpc_url
     payload = {"id": 1, "jsonrpc": "2.0", "method": "get_tip_header", "params": []}
     start = time.monotonic()
     try:

@@ -13,7 +13,7 @@ A lightweight **Prometheus exporter** that monitors the availability and core da
 | `GET /api/v1/blocks` | Latest blocks list availability, newest block number, and latest block timestamp |
 | `GET /api/v1/transactions` | Latest transactions list availability, latest tx timestamp, block number, and status |
 | `GET /api/v2/pending_transactions/count` | Number of pending transactions |
-| CKB node JSON-RPC `get_tip_header` | Node tip block number (testnet: `https://testnet.ckbapp.dev`, mainnet: `https://mainnet.ckbapp.dev`) |
+| CKB node JSON-RPC `get_tip_header` | Upstream CKB node tip block number (configured via `NODE_RPC_URL`) |
 | Frontend `GET /` | Frontend reachability |
 
 All v1 API calls include the required JSONAPI headers (`Content-Type: application/vnd.api+json`, `Accept: application/vnd.api+json`).
@@ -39,8 +39,8 @@ All v1 API calls include the required JSONAPI headers (`Content-Type: applicatio
 | `ckb_explorer_latest_transaction_block_number` | `net` | Newest transaction block number from `/transactions` |
 | `ckb_explorer_transaction_tip_lag_blocks` | `net` | Explorer tip lag to latest transaction block (`tip_block_number - latest_transaction_block_number`, min 0) |
 | `ckb_explorer_latest_transaction_status` | `net`, `status` | Latest transaction status (`status` from `tx_status`, value is always 1) |
-| `ckb_explorer_node_tip_block_number` | `net` | CKB node tip block number (from RPC `get_tip_header`) |
-| `ckb_explorer_sync_lag_blocks` | `net` | Blocks behind the node tip (node_tip − explorer_tip, min 0) |
+| `ckb_explorer_node_tip_block_number` | `net` | Upstream CKB node tip block number (from RPC `get_tip_header` on `NODE_RPC_URL`) |
+| `ckb_explorer_sync_lag_blocks` | `net` | Blocks behind the upstream node tip (upstream_node_tip − explorer_indexed_tip, min 0) |
 | `ckb_explorer_pending_transactions_count` | `net` | Number of pending transactions |
 | `ckb_explorer_scrape_duration_seconds` | `net` | Total time for one full scrape cycle |
 | `ckb_explorer_scrape_errors_total` | `net`, `endpoint` | Total scrape errors per endpoint (when check is down or raises exception) |
@@ -49,12 +49,13 @@ All v1 API calls include the required JSONAPI headers (`Content-Type: applicatio
 
 ## Configuration
 
-All configuration is via environment variables. Only **2 are required**:
+All configuration is via environment variables. Only **3 are required**:
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `API_URL` | ✅ | — | Base URL of the CKB Explorer API (e.g. `https://mainnet-api.explorer.nervos.org`) |
 | `NET` | ✅ | — | Network label: `mainnet` or `testnet` |
+| `NODE_RPC_URL` | ✅ | — | URL of the upstream CKB JSON-RPC node used by this Explorer instance (e.g. `http://ckb-node:8114`). The exporter must be deployed in a network that can reach this node. |
 | `EXPORTER_PORT` | — | `9333` | Port to expose `/metrics` on |
 | `SCRAPE_INTERVAL` | — | `30` | Seconds between scrape cycles |
 | `HTTP_TIMEOUT` | — | `10` | HTTP request timeout in seconds |
@@ -78,6 +79,7 @@ docker build -t ckb-explorer-monitor .
 docker run -d \
   -e API_URL=https://mainnet-api.explorer.nervos.org \
   -e NET=mainnet \
+  -e NODE_RPC_URL=http://ckb-node:8114 \
   -p 9333:9333 \
   ckb-explorer-monitor
 
@@ -85,6 +87,7 @@ docker run -d \
 docker run -d \
   -e API_URL=https://testnet-api.explorer.nervos.org \
   -e NET=testnet \
+  -e NODE_RPC_URL=http://ckb-testnet-node:8114 \
   -p 9334:9334 \
   -e EXPORTER_PORT=9334 \
   ckb-explorer-monitor
@@ -92,11 +95,15 @@ docker run -d \
 
 ## Running with docker-compose
 
-Both mainnet and testnet exporters start together:
+Both mainnet and testnet exporters start together. You must supply the upstream CKB node URLs via environment variables before starting:
 
 ```bash
+export MAINNET_NODE_RPC_URL=http://ckb-mainnet-node:8114
+export TESTNET_NODE_RPC_URL=http://ckb-testnet-node:8114
 docker compose up -d
 ```
+
+> **Note:** The exporter must be deployed in a network that can reach the upstream CKB node. Do not use public RPC endpoints — use the actual node that the Explorer instance connects to.
 
 - Mainnet metrics: `http://localhost:9333/metrics`
 - Testnet metrics: `http://localhost:9334/metrics`
@@ -285,8 +292,8 @@ The dashboard queries the following metrics (all exposed by this exporter):
 | `ckb_explorer_request_duration_seconds` | `net`, `endpoint` | Latency |
 | `ckb_explorer_http_status` | `net`, `endpoint` | HTTP status table |
 | `ckb_explorer_tip_block_number` | `net` | Explorer tip block |
-| `ckb_explorer_node_tip_block_number` | `net` | Node tip block |
-| `ckb_explorer_sync_lag_blocks` | `net` | Sync lag |
+| `ckb_explorer_node_tip_block_number` | `net` | Upstream CKB node tip block |
+| `ckb_explorer_sync_lag_blocks` | `net` | Sync lag (upstream_node_tip − explorer_indexed_tip) |
 | `ckb_explorer_latest_block_number` | `net` | Latest block from /blocks |
 | `ckb_explorer_latest_block_age_seconds` | `net` | Block staleness |
 | `ckb_explorer_transactions_last_24hrs` | `net` | 24 h transaction count |
