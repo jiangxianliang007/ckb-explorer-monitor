@@ -14,7 +14,6 @@ def _require(name: str) -> str:
 
 class Config:
     api_url: str
-    frontend_url: str
     net: str
     exporter_port: int
     scrape_interval: int
@@ -22,7 +21,6 @@ class Config:
 
     def __init__(self) -> None:
         self.api_url = _require("API_URL").rstrip("/")
-        self.frontend_url = _require("FRONTEND_URL").rstrip("/")
         self.net = _require("NET")
 
         try:

@@ -39,7 +39,6 @@ All v1 API calls include the required JSONAPI headers (`Content-Type: applicatio
 | `ckb_explorer_latest_transaction_block_number` | `net` | Newest transaction block number from `/transactions` |
 | `ckb_explorer_transaction_tip_lag_blocks` | `net` | Explorer tip lag to latest transaction block (`tip_block_number - latest_transaction_block_number`, min 0) |
 | `ckb_explorer_latest_transaction_status` | `net`, `status` | Latest transaction status (`status` from `tx_status`, value is always 1) |
-| `ckb_explorer_frontend_up` | `net` | 1 if frontend is reachable, else 0 |
 | `ckb_explorer_node_tip_block_number` | `net` | CKB node tip block number (from RPC `get_tip_header`) |
 | `ckb_explorer_sync_lag_blocks` | `net` | Blocks behind the node tip (node_tip − explorer_tip, min 0) |
 | `ckb_explorer_pending_transactions_count` | `net` | Number of pending transactions |
@@ -50,12 +49,11 @@ All v1 API calls include the required JSONAPI headers (`Content-Type: applicatio
 
 ## Configuration
 
-All configuration is via environment variables. Only **3 are required**:
+All configuration is via environment variables. Only **2 are required**:
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `API_URL` | ✅ | — | Base URL of the CKB Explorer API (e.g. `https://mainnet-api.explorer.nervos.org`) |
-| `FRONTEND_URL` | ✅ | — | Base URL of the CKB Explorer frontend (e.g. `https://explorer.nervos.org`) |
 | `NET` | ✅ | — | Network label: `mainnet` or `testnet` |
 | `EXPORTER_PORT` | — | `9333` | Port to expose `/metrics` on |
 | `SCRAPE_INTERVAL` | — | `30` | Seconds between scrape cycles |
@@ -67,7 +65,7 @@ Copy `.env.example` to `.env` and fill in your values:
 cp .env.example .env
 ```
 
-> **Note:** The example API URLs (`mainnet-api.explorer.nervos.org`, `testnet-api.explorer.nervos.org`) and frontend URLs (`explorer.nervos.org`, `pudge.explorer.nervos.org`) are defaults inferred from the CKB Explorer project. **Adjust them to the actual API domains used in your deployment.**
+> **Note:** The example API URLs (`mainnet-api.explorer.nervos.org`, `testnet-api.explorer.nervos.org`) are defaults inferred from the CKB Explorer project. **Adjust them to the actual API domains used in your deployment.**
 
 ---
 
@@ -79,7 +77,6 @@ docker build -t ckb-explorer-monitor .
 # Mainnet
 docker run -d \
   -e API_URL=https://mainnet-api.explorer.nervos.org \
-  -e FRONTEND_URL=https://explorer.nervos.org \
   -e NET=mainnet \
   -p 9333:9333 \
   ckb-explorer-monitor
@@ -87,7 +84,6 @@ docker run -d \
 # Testnet
 docker run -d \
   -e API_URL=https://testnet-api.explorer.nervos.org \
-  -e FRONTEND_URL=https://pudge.explorer.nervos.org \
   -e NET=testnet \
   -p 9334:9334 \
   -e EXPORTER_PORT=9334 \
@@ -185,7 +181,6 @@ receivers:
 | Alert | Severity | Condition | `for` |
 |-------|----------|-----------|-------|
 | `CKBExplorerEndpointDown` | critical | `ckb_explorer_up == 0` | 2 m |
-| `CKBExplorerFrontendDown` | critical | `ckb_explorer_frontend_up == 0` | 2 m |
 | `CKBExplorerScapeTargetDown` | critical | `up{job=~"ckb-explorer-mainnet\|ckb-explorer-testnet"} == 0` | 2 m |
 | `CKBExplorerSyncLagHigh` | warning | `ckb_explorer_sync_lag_blocks > 50` | 5 m |
 | `CKBExplorerSyncLagCritical` | critical | `ckb_explorer_sync_lag_blocks > 200` | 5 m |
@@ -243,8 +238,8 @@ A pre-built Grafana dashboard is included at [`grafana/dashboards/ckb-explorer-m
 ### Features
 
 - **`net` variable** — top-of-dashboard dropdown that filters every panel to the selected network (`mainnet`, `testnet`, or any other value exposed by the exporter).
-- **Environment URLs** — two Stat panels display the **Frontend URL** and **API URL** for the selected network. The frontend URL panel is clickable and opens the explorer in a new tab.
-- **Availability** — per-endpoint and frontend up/down status, plus availability history.
+- **Environment URLs** — a Stat panel displays the **API URL** for the selected network.
+- **Availability** — per-endpoint up/down status, plus availability history.
 - **Block & Sync Status** — explorer tip, node tip, sync lag, and latest block age.
 - **Transactions** — 24 h count, tx/min, pending count, latest transaction age.
 - **Latency** — per-endpoint request duration, average block time, scrape duration.
@@ -268,16 +263,16 @@ In Grafana (**Configuration → Data Sources → Add data source → Prometheus*
 At the top of the dashboard use the **Network** dropdown to switch between `mainnet`, `testnet`, or any other network label your exporter exposes.  
 All panels update automatically.
 
-### 4. Configure per-environment website URLs
+### 4. Configure per-environment API URL
 
-The dashboard displays the frontend and API URLs from the `ckb_explorer_info` metric, which is set automatically by the exporter at startup using the `FRONTEND_URL` and `API_URL` environment variables.
+The dashboard displays the API URL from the `ckb_explorer_info` metric, which is set automatically by the exporter at startup using the `API_URL` environment variable.
 
-No extra configuration is required — just ensure each exporter instance is started with the correct variables:
+No extra configuration is required — just ensure each exporter instance is started with the correct variable:
 
-| Network | `API_URL` | `FRONTEND_URL` |
-|---------|-----------|----------------|
-| mainnet | `https://mainnet-api.explorer.nervos.org` | `https://explorer.nervos.org` |
-| testnet | `https://testnet-api.explorer.nervos.org` | `https://pudge.explorer.nervos.org` |
+| Network | `API_URL` |
+|---------|-----------|
+| mainnet | `https://mainnet-api.explorer.nervos.org` |
+| testnet | `https://testnet-api.explorer.nervos.org` |
 
 ### 5. Required Prometheus labels / metrics
 
@@ -285,9 +280,8 @@ The dashboard queries the following metrics (all exposed by this exporter):
 
 | Metric | Labels | Used for |
 |--------|--------|---------|
-| `ckb_explorer_info` | `net`, `frontend_url`, `api_url` | Environment URL display |
+| `ckb_explorer_info` | `net`, `api_url` | Environment URL display |
 | `ckb_explorer_up` | `net`, `endpoint` | Availability, `net` variable |
-| `ckb_explorer_frontend_up` | `net` | Frontend status |
 | `ckb_explorer_request_duration_seconds` | `net`, `endpoint` | Latency |
 | `ckb_explorer_http_status` | `net`, `endpoint` | HTTP status table |
 | `ckb_explorer_tip_block_number` | `net` | Explorer tip block |

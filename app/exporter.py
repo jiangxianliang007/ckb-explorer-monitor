@@ -9,7 +9,6 @@ from prometheus_client import Counter, Gauge, Info, start_http_server
 
 from app.checks import (
     check_blocks,
-    check_frontend,
     check_node_tip,
     check_pending_transactions,
     check_statistics,
@@ -111,11 +110,6 @@ g_latest_transaction_status = Gauge(
     "ckb_explorer_latest_transaction_status",
     "Latest transaction status from /transactions (value is always 1)",
     ["net", "status"],
-)
-g_frontend_up = Gauge(
-    "ckb_explorer_frontend_up",
-    "1 if frontend is reachable, else 0",
-    _LABEL_NET,
 )
 g_node_tip_block_number = Gauge(
     "ckb_explorer_node_tip_block_number",
@@ -273,20 +267,6 @@ def _scrape(cfg: Config) -> None:
         _inc_scrape_error("transactions")
         log.exception("unexpected error in check_transactions")
 
-    # --- frontend ---
-    try:
-        r = check_frontend(cfg.frontend_url, cfg.http_timeout)
-        g_frontend_up.labels(net=net).set(1 if r.up else 0)
-        g_duration.labels(net=net, endpoint=r.endpoint).set(r.duration)
-        g_status.labels(net=net, endpoint=r.endpoint).set(r.status_code)
-        if not r.up:
-            _inc_scrape_error(r.endpoint)
-        if r.error:
-            log.warning("frontend check failed: %s", r.error)
-    except Exception:
-        _inc_scrape_error("frontend")
-        log.exception("unexpected error in check_frontend")
-
     # --- CKB node tip (RPC get_tip_header) ---
     node_tip: Optional[float] = None
     try:
@@ -353,10 +333,9 @@ def main() -> None:
     log.info("Starting CKB Explorer exporter on port %d (net=%s)", cfg.exporter_port, cfg.net)
 
     # Publish static environment info so Grafana dashboards can display the
-    # frontend URL and API URL for each net without hard-coding them.
+    # API URL for each net without hard-coding it.
     i_info.labels(net=cfg.net).info(
         {
-            "frontend_url": cfg.frontend_url,
             "api_url": cfg.api_url,
         }
     )

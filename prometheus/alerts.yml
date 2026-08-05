@@ -17,21 +17,6 @@ groups:
             Current value: {{ $value }}.
 
       # -----------------------------------------------------------------------
-      # Frontend down
-      # -----------------------------------------------------------------------
-      - alert: CKBExplorerFrontendDown
-        expr: ckb_explorer_frontend_up == 0
-        for: 2m
-        labels:
-          severity: critical
-        annotations:
-          summary: "CKB Explorer frontend unreachable ({{ $labels.net }})"
-          description: >
-            The CKB Explorer frontend on network '{{ $labels.net }}' has been unreachable
-            for more than 2 minutes.
-            Current value: {{ $value }}.
-
-      # -----------------------------------------------------------------------
       # Prometheus cannot scrape the exporter target itself
       # (scoped to the two job names defined in the README scrape config)
       # -----------------------------------------------------------------------
