@@ -111,10 +111,10 @@
           "calcs": [
             "lastNotNull"
           ],
-          "fields": "/^api_url$/",
+          "fields": "",
           "values": false
         },
-        "textMode": "value",
+        "textMode": "name",
         "text": {}
       },
       "pluginVersion": "9.0.0",
