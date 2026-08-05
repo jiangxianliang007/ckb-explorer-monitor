@@ -1,6 +1,6 @@
 # ckb-explorer-monitor
 
-A lightweight **Prometheus exporter** that monitors the availability and core data health of the [CKB Explorer](https://github.com/nervosnetwork/ckb-explorer) API for **two environments: testnet and mainnet**.
+A lightweight **Prometheus exporter** that monitors the availability and core data health of the [CKB Explorer](https://github.com/nervosnetwork/ckb-explorer) API across one or more environments (for example, mainnet and testnet).
 
 ---
 
@@ -112,18 +112,18 @@ docker compose up -d
 
 ## Prometheus scrape config
 
-Add both jobs to your `prometheus.yml`:
+Use a single Prometheus job with multiple targets:
 
 ```yaml
 scrape_configs:
-  - job_name: ckb-explorer-mainnet
+  - job_name: ckb-explorer
     static_configs:
-      - targets: ['localhost:9333']
-
-  - job_name: ckb-explorer-testnet
-    static_configs:
-      - targets: ['localhost:9334']
+      - targets:
+          - localhost:9333
+          - localhost:9334
 ```
+
+Prometheus distinguishes exporter instances by the `instance` label. The exporter metrics themselves still include the `net` label, so dashboards and alerts can continue to separate mainnet and testnet. If you need a more explicit network label at the Prometheus target layer, keep relying on the exporter-provided `net` metric label.
 
 ---
 
@@ -140,13 +140,11 @@ rule_files:
   - /path/to/ckb-explorer-monitor/prometheus/alerts.yml
 
 scrape_configs:
-  - job_name: ckb-explorer-mainnet
+  - job_name: ckb-explorer
     static_configs:
-      - targets: ['localhost:9333']
-
-  - job_name: ckb-explorer-testnet
-    static_configs:
-      - targets: ['localhost:9334']
+      - targets:
+          - localhost:9333
+          - localhost:9334
 ```
 
 ### Alertmanager integration
@@ -172,7 +170,7 @@ A minimal Alertmanager config skeleton (`alertmanager.yml`):
 ```yaml
 route:
   receiver: 'default'
-  group_by: ['alertname', 'net']
+  group_by: ['net']
   group_wait: 30s
   group_interval: 5m
   repeat_interval: 4h
@@ -183,20 +181,22 @@ receivers:
     # See https://prometheus.io/docs/alerting/latest/configuration/
 ```
 
+Different alert names under the same `net` label can therefore be delivered within the same notification group. For target-down alerts that only expose `job` and `instance`, Alertmanager will group them together under the shared missing `net` value instead of splitting by `alertname`.
+
 ### Default alert thresholds
 
 | Alert | Severity | Condition | `for` |
 |-------|----------|-----------|-------|
-| `CKBExplorerEndpointDown` | critical | `ckb_explorer_up == 0` | 2 m |
-| `CKBExplorerScapeTargetDown` | critical | `up{job=~"ckb-explorer-mainnet\|ckb-explorer-testnet"} == 0` | 2 m |
+| `CKBExplorerEndpointDown` | warning | `ckb_explorer_up == 0` | 5 m |
+| `CKBExplorerScapeTargetDown` | warning | `up{job="ckb-explorer"} == 0` | 5 m |
 | `CKBExplorerSyncLagHigh` | warning | `ckb_explorer_sync_lag_blocks > 50` | 5 m |
-| `CKBExplorerSyncLagCritical` | critical | `ckb_explorer_sync_lag_blocks > 200` | 5 m |
+| `CKBExplorerSyncLagCritical` | warning | `ckb_explorer_sync_lag_blocks > 200` | 5 m |
 | `CKBExplorerLatestBlockStale` | warning | `ckb_explorer_latest_block_age_seconds > 300` | 5 m |
-| `CKBExplorerLatestBlockStaleCritical` | critical | `ckb_explorer_latest_block_age_seconds > 900` | 5 m |
+| `CKBExplorerLatestBlockStaleCritical` | warning | `ckb_explorer_latest_block_age_seconds > 900` | 5 m |
 | `CKBExplorerLatestTransactionStale` | warning | `ckb_explorer_latest_transaction_age_seconds > 600` | 5 m |
-| `CKBExplorerLatestTransactionStaleCritical` | critical | `ckb_explorer_latest_transaction_age_seconds > 1800` | 5 m |
+| `CKBExplorerLatestTransactionStaleCritical` | warning | `ckb_explorer_latest_transaction_age_seconds > 1800` | 5 m |
 | `CKBExplorerPendingTransactionsHigh` | warning | `ckb_explorer_pending_transactions_count > 5000` | 10 m |
-| `CKBExplorerPendingTransactionsCritical` | critical | `ckb_explorer_pending_transactions_count > 20000` | 10 m |
+| `CKBExplorerPendingTransactionsCritical` | warning | `ckb_explorer_pending_transactions_count > 20000` | 10 m |
 | `CKBExplorerScrapeErrorsIncreasing` | warning | `rate(ckb_explorer_scrape_errors_total[5m]) > 0` | 5 m |
 
 > **Tuning for production:** The thresholds above are conservative defaults. Adjust them to match your actual block time (~10 s on CKB mainnet), transaction throughput, and traffic patterns. For example, if you run a high-volume chain you may want to raise the pending-transaction thresholds; if you require tighter SLOs you may reduce the `for` durations.

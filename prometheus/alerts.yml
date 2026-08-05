@@ -6,35 +6,33 @@ groups:
       # -----------------------------------------------------------------------
       - alert: CKBExplorerEndpointDown
         expr: ckb_explorer_up == 0
-        for: 2m
+        for: 5m
         labels:
-          severity: critical
+          severity: warning
         annotations:
           summary: "CKB Explorer endpoint unreachable ({{ $labels.net }}/{{ $labels.endpoint }})"
           description: >
             The CKB Explorer endpoint '{{ $labels.endpoint }}' on network '{{ $labels.net }}'
-            has been returning 0 (down) for more than 2 minutes.
+            has been returning 0 (down) for more than 5 minutes.
             Current value: {{ $value }}.
             Note: endpoint 'node_tip' represents the upstream CKB RPC probe; failure indicates
             the upstream CKB node is unreachable, not an Explorer API failure.
 
       # -----------------------------------------------------------------------
       # Prometheus cannot scrape the exporter target itself
-      # (scoped to the two job names defined in the README scrape config)
+      # (single ckb-explorer job; exporter instances are distinguished by instance)
       # -----------------------------------------------------------------------
       - alert: CKBExplorerScapeTargetDown
-        expr: up{job=~"ckb-explorer-mainnet|ckb-explorer-testnet"} == 0
-        for: 2m
+        expr: up{job="ckb-explorer"} == 0
+        for: 5m
         labels:
-          severity: critical
+          severity: warning
         annotations:
-          summary: "Prometheus cannot scrape CKB Explorer exporter ({{ $labels.job }})"
+          summary: "Prometheus cannot scrape CKB Explorer exporter ({{ $labels.instance }})"
           description: >
             Prometheus failed to scrape job '{{ $labels.job }}' (instance {{ $labels.instance }})
-            for more than 2 minutes. The exporter process may be down or unreachable.
+            for more than 5 minutes. The exporter process may be down or unreachable.
 
-  - name: ckb_explorer_sync
-    rules:
       # -----------------------------------------------------------------------
       # Explorer is lagging behind the CKB node
       # -----------------------------------------------------------------------
@@ -54,7 +52,7 @@ groups:
         expr: ckb_explorer_sync_lag_blocks > 200
         for: 5m
         labels:
-          severity: critical
+          severity: warning
         annotations:
           summary: "CKB Explorer sync lag is critical ({{ $labels.net }})"
           description: >
@@ -81,7 +79,7 @@ groups:
         expr: ckb_explorer_latest_block_age_seconds > 900
         for: 5m
         labels:
-          severity: critical
+          severity: warning
         annotations:
           summary: "CKB Explorer latest block is critically stale ({{ $labels.net }})"
           description: >
@@ -106,15 +104,13 @@ groups:
         expr: ckb_explorer_latest_transaction_age_seconds > 1800
         for: 5m
         labels:
-          severity: critical
+          severity: warning
         annotations:
           summary: "CKB Explorer latest transaction is critically stale ({{ $labels.net }})"
           description: >
             The newest transaction seen by the CKB Explorer on network '{{ $labels.net }}'
             is {{ $value | humanizeDuration }} old (threshold: 30 minutes).
 
-  - name: ckb_explorer_transactions
-    rules:
       # -----------------------------------------------------------------------
       # Pending transactions backlog
       # -----------------------------------------------------------------------
@@ -134,7 +130,7 @@ groups:
         expr: ckb_explorer_pending_transactions_count > 20000
         for: 10m
         labels:
-          severity: critical
+          severity: warning
         annotations:
           summary: "CKB Explorer pending transactions backlog is critical ({{ $labels.net }})"
           description: >
@@ -142,8 +138,6 @@ groups:
             {{ $value | humanize }} transactions (threshold: 20 000) and has been above
             this level for more than 10 minutes.
 
-  - name: ckb_explorer_scrape_errors
-    rules:
       # -----------------------------------------------------------------------
       # Scrape errors increasing
       # -----------------------------------------------------------------------
