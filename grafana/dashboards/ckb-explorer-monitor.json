@@ -1477,10 +1477,50 @@
           "decimals": 0,
           "custom": {
             "align": "auto",
-            "displayMode": "color-background"
+            "displayMode": "auto"
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Endpoint"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "auto"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "HTTP Status"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "unit",
+                "value": "none"
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 7,
@@ -1505,20 +1545,29 @@
           "expr": "ckb_explorer_http_status{net=\"$net\"}",
           "instant": true,
           "legendFormat": "{{endpoint}}",
-          "refId": "A"
+          "refId": "A",
+          "format": "table"
         }
       ],
       "title": "HTTP Status Codes",
       "transformations": [
         {
-          "id": "labelsToFields",
-          "options": {
-            "valueLabel": "endpoint"
-          }
-        },
-        {
           "id": "organize",
-          "options": {}
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "net": true
+            },
+            "indexByName": {
+              "endpoint": 0,
+              "Value": 1
+            },
+            "renameByName": {
+              "endpoint": "Endpoint",
+              "Value": "HTTP Status"
+            }
+          }
         }
       ],
       "type": "table"
