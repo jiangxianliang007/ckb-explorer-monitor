@@ -5,6 +5,7 @@ services:
     environment:
       API_URL: https://mainnet-api.explorer.nervos.org
       NET: mainnet
+      NODE_RPC_URL: ${MAINNET_NODE_RPC_URL:?MAINNET_NODE_RPC_URL is required}
       EXPORTER_PORT: "9333"
       SCRAPE_INTERVAL: "30"
       HTTP_TIMEOUT: "10"
@@ -18,6 +19,7 @@ services:
     environment:
       API_URL: https://testnet-api.explorer.nervos.org
       NET: testnet
+      NODE_RPC_URL: ${TESTNET_NODE_RPC_URL:?TESTNET_NODE_RPC_URL is required}
       EXPORTER_PORT: "9334"
       SCRAPE_INTERVAL: "30"
       HTTP_TIMEOUT: "10"

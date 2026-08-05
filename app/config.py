@@ -15,6 +15,7 @@ def _require(name: str) -> str:
 class Config:
     api_url: str
     net: str
+    node_rpc_url: str
     exporter_port: int
     scrape_interval: int
     http_timeout: int
@@ -22,6 +23,7 @@ class Config:
     def __init__(self) -> None:
         self.api_url = _require("API_URL").rstrip("/")
         self.net = _require("NET")
+        self.node_rpc_url = _require("NODE_RPC_URL").rstrip("/")
 
         try:
             self.exporter_port = int(os.environ.get("EXPORTER_PORT", "9333"))

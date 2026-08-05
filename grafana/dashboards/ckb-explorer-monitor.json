@@ -285,7 +285,20 @@
           },
           "unit": "none"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "node_tip"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Upstream CKB RPC"
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 6,
@@ -453,11 +466,11 @@
           },
           "expr": "ckb_explorer_node_tip_block_number{net=\"$net\"}",
           "instant": true,
-          "legendFormat": "Node Tip",
+          "legendFormat": "Upstream CKB Node Tip",
           "refId": "A"
         }
       ],
-      "title": "Node Tip Block",
+      "title": "Upstream CKB Node Tip Block",
       "type": "stat"
     },
     {
@@ -529,7 +542,7 @@
           "refId": "A"
         }
       ],
-      "title": "Sync Lag (blocks)",
+      "title": "Sync Lag (blocks): Upstream Node Tip - Explorer Indexed Tip",
       "type": "stat"
     },
     {
@@ -664,7 +677,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "expr": "ckb_explorer_node_tip_block_number{net=\"$net\"}",
-          "legendFormat": "Node Tip",
+          "legendFormat": "Upstream CKB Node Tip",
           "refId": "B"
         },
         {
@@ -685,7 +698,7 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Sync lag history (node_tip - explorer_tip).",
+      "description": "Sync lag history (upstream_node_tip - explorer_indexed_tip).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -753,7 +766,7 @@
           "refId": "A"
         }
       ],
-      "title": "Sync Lag History",
+      "title": "Sync Lag History (Upstream Node Tip - Explorer Indexed Tip)",
       "type": "timeseries"
     },
     {

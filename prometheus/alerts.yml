@@ -15,6 +15,8 @@ groups:
             The CKB Explorer endpoint '{{ $labels.endpoint }}' on network '{{ $labels.net }}'
             has been returning 0 (down) for more than 2 minutes.
             Current value: {{ $value }}.
+            Note: endpoint 'node_tip' represents the upstream CKB RPC probe; failure indicates
+            the upstream CKB node is unreachable, not an Explorer API failure.
 
       # -----------------------------------------------------------------------
       # Prometheus cannot scrape the exporter target itself
@@ -45,7 +47,8 @@ groups:
           summary: "CKB Explorer sync lag is high ({{ $labels.net }})"
           description: >
             The CKB Explorer on network '{{ $labels.net }}' is {{ $value | humanize }} blocks
-            behind the CKB node tip and has been above 50 blocks for more than 5 minutes.
+            behind the upstream CKB node tip (upstream_node_tip - explorer_indexed_tip)
+            and has been above 50 blocks for more than 5 minutes.
 
       - alert: CKBExplorerSyncLagCritical
         expr: ckb_explorer_sync_lag_blocks > 200
@@ -56,7 +59,8 @@ groups:
           summary: "CKB Explorer sync lag is critical ({{ $labels.net }})"
           description: >
             The CKB Explorer on network '{{ $labels.net }}' is {{ $value | humanize }} blocks
-            behind the CKB node tip and has been above 200 blocks for more than 5 minutes.
+            behind the upstream CKB node tip (upstream_node_tip - explorer_indexed_tip)
+            and has been above 200 blocks for more than 5 minutes.
 
       # -----------------------------------------------------------------------
       # Latest block not updating
