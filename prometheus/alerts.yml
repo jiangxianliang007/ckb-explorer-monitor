@@ -142,7 +142,10 @@ groups:
       # Scrape errors increasing
       # -----------------------------------------------------------------------
       - alert: CKBExplorerScrapeErrorsIncreasing
-        expr: rate(ckb_explorer_scrape_errors_total[5m]) > 0
+        expr: |
+          increase(ckb_explorer_scrape_errors_total[15m]) >= 3
+          and on (net, endpoint)
+          avg_over_time(ckb_explorer_up[15m]) < 0.9
         for: 5m
         labels:
           severity: warning
@@ -150,6 +153,6 @@ groups:
           summary: "CKB Explorer scrape errors are increasing ({{ $labels.net }}/{{ $labels.endpoint }})"
           description: >
             Scrape errors for endpoint '{{ $labels.endpoint }}' on network '{{ $labels.net }}'
-            have been occurring continuously for more than 5 minutes
-            (rate: {{ $value | humanize }} errors/s).
-            Check exporter logs and target reachability.
+            had at least 3 scrape errors in the last 15 minutes, while endpoint
+            availability stayed below 90%, and this condition has been sustained
+            for 5 minutes. Check exporter logs and target reachability.

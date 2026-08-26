@@ -197,7 +197,7 @@ Different alert names under the same `net` label can therefore be delivered with
 | `CKBExplorerLatestTransactionStaleCritical` | warning | `ckb_explorer_latest_transaction_age_seconds > 1800` | 5 m |
 | `CKBExplorerPendingTransactionsHigh` | warning | `ckb_explorer_pending_transactions_count > 5000` | 10 m |
 | `CKBExplorerPendingTransactionsCritical` | warning | `ckb_explorer_pending_transactions_count > 20000` | 10 m |
-| `CKBExplorerScrapeErrorsIncreasing` | warning | `rate(ckb_explorer_scrape_errors_total[5m]) > 0` | 5 m |
+| `CKBExplorerScrapeErrorsIncreasing` | warning | `increase(ckb_explorer_scrape_errors_total[15m]) >= 3 and on (net, endpoint) avg_over_time(ckb_explorer_up[15m]) < 0.9` | 5 m |
 
 > **Tuning for production:** The thresholds above are conservative defaults. Adjust them to match your actual block time (~10 s on CKB mainnet), transaction throughput, and traffic patterns. For example, if you run a high-volume chain you may want to raise the pending-transaction thresholds; if you require tighter SLOs you may reduce the `for` durations.
 
