@@ -50,7 +50,7 @@
   "annotations": {
     "list": []
   },
-  "description": "CKB Explorer monitoring dashboard \u2014 availability, block sync, transactions, latency, errors. Switch environment with the 'net' variable.",
+  "description": "CKB Explorer monitoring dashboard — availability, block sync, transactions, latency, errors. Switch environment with the 'net' variable.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -130,7 +130,7 @@
           "refId": "A"
         }
       ],
-      "title": "\ud83d\udd17 API URL",
+      "title": "🔗 API URL",
       "type": "stat"
     },
     {
@@ -1401,7 +1401,7 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Rate of scrape errors per endpoint over the last 5 minutes.",
+      "description": "Estimated number of failed endpoint checks in the rolling 15-minute window. Counter resets are handled by increase(); overlapping windows must not be summed.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1415,7 +1415,9 @@
             "showPoints": "never",
             "spanNulls": false
           },
-          "unit": "short"
+          "unit": "short",
+          "decimals": 0,
+          "min": 0
         },
         "overrides": []
       },
@@ -1430,7 +1432,7 @@
         "legend": {
           "calcs": [
             "last",
-            "sum"
+            "max"
           ],
           "displayMode": "table",
           "placement": "bottom"
@@ -1446,12 +1448,12 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "rate(ckb_explorer_scrape_errors_total{net=\"$net\"}[5m])",
+          "expr": "increase(ckb_explorer_scrape_errors_total{net=\"$net\"}[15m])",
           "legendFormat": "{{endpoint}}",
           "refId": "A"
         }
       ],
-      "title": "Scrape Error Rate (5m)",
+      "title": "Scrape Error Count (15m)",
       "type": "timeseries"
     },
     {
@@ -1628,5 +1630,5 @@
   "timezone": "browser",
   "title": "CKB Explorer Monitor",
   "uid": "ckb-explorer-monitor",
-  "version": 1
+  "version": 2
 }
