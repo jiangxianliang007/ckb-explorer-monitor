@@ -197,7 +197,10 @@ Different alert names under the same `net` label can therefore be delivered with
 | `CKBExplorerLatestTransactionStaleCritical` | warning | `ckb_explorer_latest_transaction_age_seconds > 1800` | 5 m |
 | `CKBExplorerPendingTransactionsHigh` | warning | `ckb_explorer_pending_transactions_count > 5000` | 10 m |
 | `CKBExplorerPendingTransactionsCritical` | warning | `ckb_explorer_pending_transactions_count > 20000` | 10 m |
-| `CKBExplorerScrapeErrorsIncreasing` | warning | `increase(ckb_explorer_scrape_errors_total[15m]) >= 3 and on (net, endpoint) avg_over_time(ckb_explorer_up[15m]) < 0.9` | 5 m |
+| `CKBExplorerScrapeErrorsIncreasing` | warning | At least 5 errors in 15 m, availability below 80%, and at least one successful sample in the last 5 m | 10 m |
+| `CKBExplorerRequestDurationHigh` | warning | 5 m average request latency > 3 s, with endpoint up throughout the last 5 m | 10 m |
+
+Both intermittent-error and latency alerts use `keep_firing_for: 5m` to reduce notification flapping. Continuous endpoint outages are covered by `CKBExplorerEndpointDown`. Alertmanager grouping and repeat intervals still determine notification frequency.
 
 > **Tuning for production:** The thresholds above are conservative defaults. Adjust them to match your actual block time (~10 s on CKB mainnet), transaction throughput, and traffic patterns. For example, if you run a high-volume chain you may want to raise the pending-transaction thresholds; if you require tighter SLOs you may reduce the `for` durations.
 
@@ -250,7 +253,7 @@ A pre-built Grafana dashboard is included at [`grafana/dashboards/ckb-explorer-m
 - **Block & Sync Status** — explorer tip, node tip, sync lag, and latest block age.
 - **Transactions** — 24 h count, tx/min, pending count, latest transaction age.
 - **Latency** — per-endpoint request duration, average block time, scrape duration.
-- **Errors & HTTP Status** — scrape error rate and last HTTP status codes.
+- **Errors & HTTP Status** — rolling 15-minute scrape error counts and last HTTP status codes.
 
 ### 1. Configure the Prometheus datasource
 
@@ -302,6 +305,6 @@ The dashboard queries the following metrics (all exposed by this exporter):
 | `ckb_explorer_latest_transaction_age_seconds` | `net` | Transaction staleness |
 | `ckb_explorer_average_block_time` | `net` | Average block time (ms) |
 | `ckb_explorer_scrape_duration_seconds` | `net` | Exporter scrape cycle time |
-| `ckb_explorer_scrape_errors_total` | `net`, `endpoint` | Error rate |
+| `ckb_explorer_scrape_errors_total` | `net`, `endpoint` | Error count (15 m) |
 
 All metrics are emitted automatically by the exporter — no extra instrumentation is needed.
